@@ -12,8 +12,11 @@ const dmy = s => { if (!s) return ''; const [y,m,d] = String(s).split('-'); retu
 const today = () => new Date().toLocaleDateString('en-CA');
 const CATS = ['Site material','Hardware','Consultant fees','Printing & plotting','Approvals & liaison','Travel & site visit','Models & samples','Furniture & fixtures','Other'];
 const STATUSES = ['Unpaid','Partial','Paid'];
-const paidOf = e => e.payment_status === 'Paid' ? Number(e.amount || 0) : e.payment_status === 'Partial' ? Number(e.paid_amount || 0) : 0;
-const balOf = e => Math.max(0, Number(e.amount || 0) - paidOf(e));
+const r2 = n => Math.round((Number(n) || 0) * 100) / 100;
+const gstOf = e => r2(Number(e.amount || 0) * Number(e.gst_percent || 0) / 100);
+const totalOf = e => r2(Number(e.amount || 0) + gstOf(e));
+const paidOf = e => e.payment_status === 'Paid' ? totalOf(e) : e.payment_status === 'Partial' ? Number(e.paid_amount || 0) : 0;
+const balOf = e => Math.max(0, r2(totalOf(e) - paidOf(e)));
 
 const S = { user:null, role:'none', projects:[], pid:null, sheets:[], sid:null, entries:[], urls:{}, q:'' };
 let sb = null;
@@ -190,10 +193,12 @@ function sheetEntries() {
 function renderTable() {
   const A = isAdmin();
   const all = S.entries.filter(e => e.sheet_id === S.sid);
-  const tot = all.reduce((x, e) => x + Number(e.amount || 0), 0);
+  const tot = all.reduce((x, e) => x + totalOf(e), 0);
+  const gst = all.reduce((x, e) => x + gstOf(e), 0);
   const paid = all.reduce((x, e) => x + paidOf(e), 0);
   $('#chips').innerHTML = `
-    <div class="chip">Total billed<b>${inr(tot)}</b></div>
+    <div class="chip">Total billed (incl. GST)<b>${inr(tot)}</b></div>
+    <div class="chip">GST included<b>${inr(gst)}</b></div>
     <div class="chip">Paid<b style="color:var(--paid)">${inr(paid)}</b></div>
     <div class="chip">Balance due<b style="color:var(--unpaid)">${inr(tot - paid)}</b></div>
     <div class="chip">Entries<b>${all.length}</b></div>`;
@@ -202,7 +207,7 @@ function renderTable() {
   <table>
     <thead><tr>
       <th>#</th><th>Date</th><th>Vendor</th><th>Description</th><th>Category</th>
-      <th class="num">Amount</th><th class="num">Paid</th><th class="num">Balance</th><th>Status</th><th>Photo</th><th>Remarks</th><th>Client remarks</th>${A ? '<th></th>' : ''}
+      <th class="num">Amount</th><th class="num">GST</th><th class="num">Total incl. GST</th><th class="num">Paid</th><th class="num">Balance</th><th>Status</th><th>Photo</th><th>Remarks</th><th>Client remarks</th>${A ? '<th></th>' : ''}
     </tr></thead>
     <tbody>
     ${rows.length ? rows.map((e, i) => `
@@ -213,6 +218,8 @@ function renderTable() {
         <td>${esc(e.description)}</td>
         <td>${esc(e.category)}</td>
         <td class="num">${inr(e.amount)}</td>
+        <td class="num">${Number(e.gst_percent) > 0 ? `${esc(Number(e.gst_percent))}%<br><span class="muted">${inr(gstOf(e))}</span>` : '<span class="muted">—</span>'}</td>
+        <td class="num"><b>${inr(totalOf(e))}</b></td>
         <td class="num" style="color:var(--paid)">${inr(paidOf(e))}</td>
         <td class="num" style="${balOf(e) > 0 ? 'color:var(--unpaid);font-weight:600' : 'color:var(--muted)'}">${inr(balOf(e))}</td>
         <td><span class="st ${esc(e.payment_status)}">${esc(e.payment_status)}</span></td>
@@ -228,7 +235,7 @@ function renderTable() {
         ${A ? `<td style="white-space:nowrap">
           <button class="btn small" data-act="editEntry" data-id="${e.id}">Edit</button>
           <button class="btn small danger" data-act="delEntry" data-id="${e.id}">✕</button></td>` : ''}
-      </tr>`).join('') : `<tr><td colspan="${A ? 13 : 12}" class="muted" style="text-align:center;padding:22px">No entries${S.q ? ' match your search' : ' yet'}.</td></tr>`}
+      </tr>`).join('') : `<tr><td colspan="${A ? 15 : 14}" class="muted" style="text-align:center;padding:22px">No entries${S.q ? ' match your search' : ' yet'}.</td></tr>`}
     </tbody>
   </table>`;
 }
@@ -246,8 +253,13 @@ function entryForm(e) {
     <h3>${e ? 'Edit entry' : 'New entry'} <span class="muted" style="font-size:13px">· ${esc(curSheet().name)}</span></h3>
     <div class="grid2">
       <div><label>Date</label><input type="date" name="entry_date" value="${esc(e?.entry_date || today())}" required></div>
-      <div><label>Amount (₹)</label><input type="number" name="amount" step="0.01" min="0" inputmode="decimal" value="${esc(e?.amount ?? '')}" required></div>
+      <div><label>Amount before GST (₹)</label><input type="number" name="amount" step="0.01" min="0" inputmode="decimal" value="${esc(e?.amount ?? '')}" required></div>
     </div>
+    <div class="grid2">
+      <div><label>GST %</label><input type="number" name="gst_percent" step="0.01" min="0" max="100" inputmode="decimal" list="gstopts" value="${esc(e?.gst_percent ?? 0)}"><datalist id="gstopts"><option value="0"><option value="5"><option value="12"><option value="18"><option value="28"></datalist></div>
+      <div><label>Total incl. GST</label><div id="totBox" style="padding:9px 10px;border:1px solid var(--line);border-radius:9px;background:var(--bg);font-weight:700;min-height:38px"></div></div>
+    </div>
+    <div class="hint" id="gstHint" style="font-weight:600"></div>
     <label>Vendor</label><input type="text" name="vendor" value="${esc(e?.vendor)}" placeholder="Shop / supplier name">
     <label>Description</label><input type="text" name="description" value="${esc(e?.description)}" placeholder="What was purchased">
     <div class="grid2">
@@ -255,7 +267,7 @@ function entryForm(e) {
       <div><label>Payment status</label><select name="payment_status">${STATUSES.map(s => `<option ${((e?.payment_status) || 'Unpaid') === s ? 'selected' : ''}>${s}</option>`).join('')}</select></div>
     </div>
     <div id="paidWrap" style="display:${st0 === 'Partial' ? 'block' : 'none'}">
-      <label>Amount paid so far (₹)</label>
+      <label>Amount paid so far, incl. GST (₹)</label>
       <input type="number" name="paid_amount" step="0.01" min="0" inputmode="decimal" value="${esc(e?.paid_amount || '')}" placeholder="e.g. 40000">
       <div class="hint" id="balHint" style="font-weight:600"></div>
     </div>
@@ -281,11 +293,15 @@ function entryForm(e) {
   };
   const sync = () => {
     const f = $('#entryForm'), s = f.payment_status.value;
+    const base = parseFloat(f.amount.value) || 0, pct = parseFloat(f.gst_percent.value) || 0;
+    const gst = r2(base * pct / 100), tot = r2(base + gst);
+    $('#totBox').textContent = inr(tot);
+    $('#gstHint').textContent = pct > 0 ? `GST ${pct}% = ${inr(gst)}` : '';
     $('#paidWrap').style.display = s === 'Partial' ? 'block' : 'none';
-    const tot = parseFloat(f.amount.value) || 0, pd = parseFloat(f.paid_amount.value) || 0;
-    $('#balHint').textContent = s === 'Partial' ? `Balance remaining: ${inr(Math.max(0, tot - pd))}` : '';
+    const pd = parseFloat(f.paid_amount.value) || 0;
+    $('#balHint').textContent = s === 'Partial' ? `Balance remaining: ${inr(Math.max(0, r2(tot - pd)))}` : '';
   };
-  ['payment_status', 'amount', 'paid_amount'].forEach(n => { const el = $('#entryForm').elements[n]; el.addEventListener('input', sync); el.addEventListener('change', sync); });
+  ['payment_status', 'amount', 'gst_percent', 'paid_amount'].forEach(n => { const el = $('#entryForm').elements[n]; el.addEventListener('input', sync); el.addEventListener('change', sync); });
   sync();
   $('#fCam').addEventListener('change', onFile);
   $('#fGal').addEventListener('change', onFile);
@@ -301,14 +317,17 @@ async function saveEntry(form) {
       description: (f.get('description') || '').trim(),
       category: (f.get('category') || '').trim(),
       amount: parseFloat(f.get('amount')) || 0,
+      gst_percent: parseFloat(f.get('gst_percent')) || 0,
       payment_status: f.get('payment_status'),
       remarks: (f.get('remarks') || '').trim()
     };
-    if (rec.payment_status === 'Paid') rec.paid_amount = rec.amount;
+    if (rec.gst_percent < 0 || rec.gst_percent > 100) throw new Error('GST % must be between 0 and 100.');
+    const total = totalOf(rec);
+    if (rec.payment_status === 'Paid') rec.paid_amount = total;
     else if (rec.payment_status === 'Unpaid') rec.paid_amount = 0;
     else {
       rec.paid_amount = parseFloat(f.get('paid_amount')) || 0;
-      if (!(rec.paid_amount > 0 && rec.paid_amount < rec.amount)) throw new Error('For a partial payment, enter an amount paid that is more than 0 and less than the total amount.');
+      if (!(rec.paid_amount > 0 && rec.paid_amount < total)) throw new Error('For a partial payment, enter an amount paid that is more than 0 and less than the total including GST.');
     }
     const existing = editingId ? S.entries.find(x => x.id === editingId) : null;
     const oldPath = existing?.photo_path || null;
@@ -386,7 +405,7 @@ async function exportPDF() {
         const c = document.createElement('canvas');
         c.width = Math.round(bmp.width * Math.min(1, r)); c.height = Math.round(bmp.height * Math.min(1, r));
         c.getContext('2d').drawImage(bmp, 0, 0, c.width, c.height);
-        const bw = 25, bh = 22, k = Math.min(bw / c.width, bh / c.height);
+        const bw = 21, bh = 21, k = Math.min(bw / c.width, bh / c.height);
         thumbs[path] = { d: c.toDataURL('image/jpeg', 0.7), w: c.width * k, h: c.height * k };
       } catch { /* no thumbnail; link still works */ }
     }));
@@ -400,26 +419,29 @@ async function exportPDF() {
       doc.setFontSize(8); doc.setTextColor(110);
       doc.text(`HNJ Architects · Project Expenses · Generated ${stamp}. Click a bill photo to open the full-size image.`, 10, 17);
       doc.setTextColor(0);
-      const total = rows.reduce((a, e) => a + Number(e.amount || 0), 0); grand += total;
+      const tBase = rows.reduce((a, e) => a + Number(e.amount || 0), 0);
+      const tGst = rows.reduce((a, e) => a + gstOf(e), 0);
+      const total = rows.reduce((a, e) => a + totalOf(e), 0); grand += total;
       const tPaid = rows.reduce((x, e) => x + paidOf(e), 0); gPaid += tPaid;
       doc.autoTable({
         startY: 20,
-        head: [['#', 'Date', 'Vendor', 'Description', 'Category', 'Amount (Rs.)', 'Paid (Rs.)', 'Balance (Rs.)', 'Status', 'Remarks', 'Client remarks', 'Photo']],
+        head: [['#', 'Date', 'Vendor', 'Description', 'Category', 'Amount (Rs.)', 'GST %', 'GST (Rs.)', 'Total incl. GST (Rs.)', 'Paid (Rs.)', 'Balance (Rs.)', 'Status', 'Remarks', 'Client remarks', 'Photo']],
         body: rows.map((e, i) => [
           i + 1, dmy(e.entry_date), e.vendor || '', e.description || '', e.category || '',
-          num2(e.amount), num2(paidOf(e)), num2(balOf(e)), e.payment_status, e.remarks || '', e.client_remarks || '',
+          num2(e.amount), Number(e.gst_percent) || 0, num2(gstOf(e)), num2(totalOf(e)), num2(paidOf(e)), num2(balOf(e)), e.payment_status, e.remarks || '', e.client_remarks || '',
           e.photo_path ? { content: '', styles: { minCellHeight: 24 } } : '—'
         ]),
-        foot: [['', '', '', '', 'Total', num2(total), num2(tPaid), num2(total - tPaid), '', '', '', '']],
+        foot: [['', '', '', '', 'Total', num2(tBase), '', num2(tGst), num2(total), num2(tPaid), num2(total - tPaid), '', '', '', '']],
         showFoot: 'lastPage',
-        styles: { fontSize: 8, cellPadding: 1.5, valign: 'middle', overflow: 'linebreak' },
+        styles: { fontSize: 7, cellPadding: 1.2, valign: 'middle', overflow: 'linebreak' },
         headStyles: { fillColor: [31, 77, 58] },
         footStyles: { fillColor: [235, 235, 228], textColor: 20, fontStyle: 'bold' },
-        columnStyles: { 0: { cellWidth: 8 }, 1: { cellWidth: 18 }, 2: { cellWidth: 25 }, 3: { cellWidth: 40 }, 4: { cellWidth: 20 },
-                        5: { cellWidth: 21, halign: 'right' }, 6: { cellWidth: 21, halign: 'right' }, 7: { cellWidth: 21, halign: 'right' }, 8: { cellWidth: 14 }, 9: { cellWidth: 30 }, 10: { cellWidth: 30 }, 11: { cellWidth: 29 } },
+        columnStyles: { 0: { cellWidth: 7 }, 1: { cellWidth: 17 }, 2: { cellWidth: 21 }, 3: { cellWidth: 32 }, 4: { cellWidth: 17 },
+                        5: { cellWidth: 19, halign: 'right' }, 6: { cellWidth: 10, halign: 'right' }, 7: { cellWidth: 16, halign: 'right' }, 8: { cellWidth: 21, halign: 'right' },
+                        9: { cellWidth: 19, halign: 'right' }, 10: { cellWidth: 19, halign: 'right' }, 11: { cellWidth: 13 }, 12: { cellWidth: 21 }, 13: { cellWidth: 21 }, 14: { cellWidth: 24 } },
         margin: { left: 10, right: 10, bottom: 12 },
         didDrawCell: d => {
-          if (d.section !== 'body' || d.column.index !== 11) return;
+          if (d.section !== 'body' || d.column.index !== 14) return;
           const e = rows[d.row.index];
           if (!e || !e.photo_path) return;
           const t = thumbs[e.photo_path];
@@ -433,7 +455,7 @@ async function exportPDF() {
     if (S.sheets.length > 1) {
       doc.setFontSize(11);
       const y = doc.lastAutoTable.finalY + 8;
-      doc.text(`Project total: Rs. ${num2(grand)}    Paid: Rs. ${num2(gPaid)}    Balance: Rs. ${num2(grand - gPaid)}`, 10, y > 195 ? 195 : y);
+      doc.text(`Project total (incl. GST): Rs. ${num2(grand)}    Paid: Rs. ${num2(gPaid)}    Balance: Rs. ${num2(grand - gPaid)}`, 10, y > 195 ? 195 : y);
     }
     const pages = doc.getNumberOfPages();
     for (let i = 1; i <= pages; i++) { doc.setPage(i); doc.setFontSize(8); doc.setTextColor(120); doc.text(`Page ${i} of ${pages}`, 287, 205, { align: 'right' }); }
@@ -459,9 +481,9 @@ async function exportCSV() {
     (data || []).forEach(d => { if (d.signedUrl) urls[d.path] = d.signedUrl; });
   }
   const q = v => `"${String(v ?? '').replace(/"/g, '""')}"`;
-  const head = ['Date', 'Vendor', 'Description', 'Category', 'Amount', 'Paid', 'Balance', 'Status', 'Remarks', 'Client remarks', 'Photo link'];
+  const head = ['Date', 'Vendor', 'Description', 'Category', 'Amount (before GST)', 'GST %', 'GST amount', 'Total incl. GST', 'Paid', 'Balance', 'Status', 'Remarks', 'Client remarks', 'Photo link'];
   const lines = [head.map(q).join(',')].concat(rows.map(e =>
-    [dmy(e.entry_date), e.vendor, e.description, e.category, e.amount, paidOf(e), balOf(e), e.payment_status, e.remarks, e.client_remarks, urls[e.photo_path] || ''].map(q).join(',')));
+    [dmy(e.entry_date), e.vendor, e.description, e.category, e.amount, e.gst_percent || 0, gstOf(e), totalOf(e), paidOf(e), balOf(e), e.payment_status, e.remarks, e.client_remarks, urls[e.photo_path] || ''].map(q).join(',')));
   download(`${curProject().name} - ${sh.name}.csv`, new Blob(['﻿' + lines.join('\n')], { type: 'text/csv;charset=utf-8' }));
 }
 
