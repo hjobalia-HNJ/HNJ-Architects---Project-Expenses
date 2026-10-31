@@ -108,9 +108,10 @@ function renderLogin() {
     <button class="btn primary" style="width:100%" data-act="google">Continue with Google</button>
     <div class="divider">or use email &amp; password</div>
     <form id="loginForm">
-      <input type="email" name="email" placeholder="Email" required autocomplete="email">
+      <input type="email" name="email" placeholder="Email" required autocomplete="username" autocapitalize="none" autocorrect="off" spellcheck="false">
       <div style="height:8px"></div>
-      <input type="password" name="password" placeholder="Password (min 6 characters)" required minlength="6" autocomplete="current-password">
+      <input type="password" name="password" placeholder="Password (min 6 characters)" required minlength="6" autocomplete="current-password" autocapitalize="none" autocorrect="off" spellcheck="false">
+      <label style="display:flex;gap:8px;align-items:center;margin:8px 0 0"><input type="checkbox" id="showpw" style="width:auto"> Show password</label>
       <div class="row" style="margin-top:10px">
         <button class="btn primary grow" type="submit">Sign in</button>
         <button class="btn grow" type="button" data-act="signup">Create account</button>
@@ -493,7 +494,7 @@ const actions = {
   },
   async signup() {
     const f = $('#loginForm'); if (!f.reportValidity()) return;
-    const { data, error } = await sb.auth.signUp({ email: f.email.value.trim(), password: f.password.value, options: { emailRedirectTo: location.origin + location.pathname } });
+    const { data, error } = await sb.auth.signUp({ email: f.email.value.trim().toLowerCase(), password: f.password.value, options: { emailRedirectTo: location.origin + location.pathname } });
     if (error) return toast(error.message, true);
     toast(data.session ? 'Account created' : 'Check your email to confirm your account, then sign in');
   },
@@ -598,6 +599,7 @@ dlg.addEventListener('click', ev => { if (ev.target === dlg) closeDlg(); else on
 
 root.addEventListener('change', ev => {
   if (ev.target.id === 'projSel') { S.sid = null; loadProject(ev.target.value); }
+  if (ev.target.id === 'showpw') { $('#loginForm').elements.password.type = ev.target.checked ? 'text' : 'password'; }
 });
 root.addEventListener('input', ev => {
   if (ev.target.id === 'q') { S.q = ev.target.value; renderTable(); }
@@ -606,8 +608,9 @@ root.addEventListener('submit', async ev => {
   if (ev.target.id !== 'loginForm') return;
   ev.preventDefault();
   const f = ev.target;
-  const { error } = await sb.auth.signInWithPassword({ email: f.email.value.trim(), password: f.password.value });
-  if (error) toast(error.message, true);
+  const em = f.email.value.trim().toLowerCase();
+  const { error } = await sb.auth.signInWithPassword({ email: em, password: f.password.value });
+  if (error) toast(error.message + ` (email sent: ${em}, password length: ${f.password.value.length})`, true);
 });
 dlg.addEventListener('submit', async ev => {
   const id = ev.target.id;
