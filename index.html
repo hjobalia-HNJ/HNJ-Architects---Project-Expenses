@@ -1,0 +1,87 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>HNJ Architects - Project Expenses</title>
+<meta name="theme-color" content="#1f4d3a">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icon.svg" type="image/svg+xml">
+<style>
+  :root{
+    --bg:#f6f5f1; --card:#ffffff; --ink:#1d2320; --muted:#6b736e; --line:#e4e2da;
+    --brand:#1f4d3a; --brand-ink:#ffffff; --accent:#c9822b; --danger:#b3392f;
+    --paid:#2e7d4f; --partial:#b07a14; --unpaid:#b3392f;
+  }
+  @media (prefers-color-scheme: dark){
+    :root{ --bg:#141816; --card:#1d2321; --ink:#ecefec; --muted:#9aa39d; --line:#2f3733;
+      --brand:#4d9a78; --brand-ink:#0d1411; --accent:#e0a050; --danger:#e0645a;
+      --paid:#5bbd86; --partial:#e0b04a; --unpaid:#e0645a; }
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.45 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+  button,input,select,textarea{font:inherit;color:inherit}
+  .wrap{max-width:1250px;margin:0 auto;padding:12px 14px 80px}
+  header.top{display:flex;align-items:center;gap:10px;justify-content:space-between;padding:10px 14px;background:var(--brand);color:var(--brand-ink);position:sticky;top:0;z-index:5}
+  header.top b{font-size:16px;letter-spacing:.2px}
+  .ttl{display:flex;flex-direction:column;line-height:1.15}
+  .ttl small{font-size:11px;opacity:.85;letter-spacing:.3px}
+  header.top .who{font-size:12px;opacity:.9;text-align:right;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:60vw}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:16px}
+  .center{max-width:420px;margin:12vh auto 0;text-align:center}
+  .row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+  .grow{flex:1 1 auto}
+  .btn{border:1px solid var(--line);background:var(--card);padding:8px 12px;border-radius:9px;cursor:pointer;min-height:38px}
+  .btn:hover{border-color:var(--brand)}
+  .btn.primary{background:var(--brand);color:var(--brand-ink);border-color:var(--brand)}
+  .btn.danger{color:var(--danger)}
+  .btn.small{padding:4px 9px;min-height:30px;font-size:13px}
+  .btn[disabled]{opacity:.5;pointer-events:none}
+  input[type=text],input[type=email],input[type=password],input[type=date],input[type=number],select,textarea{
+    width:100%;padding:9px 10px;border:1px solid var(--line);border-radius:9px;background:var(--card)}
+  textarea{resize:vertical}
+  label{display:block;font-size:12px;color:var(--muted);margin:10px 0 3px}
+  .tabs{display:flex;gap:6px;overflow-x:auto;padding:10px 0 6px}
+  .tab{white-space:nowrap;padding:7px 13px;border-radius:999px;border:1px solid var(--line);background:var(--card);cursor:pointer}
+  .tab.on{background:var(--brand);color:var(--brand-ink);border-color:var(--brand)}
+  .chips{display:flex;gap:8px;flex-wrap:wrap;margin:8px 0}
+  .chip{padding:6px 11px;border:1px solid var(--line);border-radius:10px;background:var(--card);font-size:13px}
+  .chip b{display:block;font-size:15px}
+  .tablewrap{overflow:auto;border:1px solid var(--line);border-radius:12px;background:var(--card);margin-top:8px}
+  table{border-collapse:collapse;width:100%;min-width:1180px}
+  th,td{padding:8px 10px;border-bottom:1px solid var(--line);text-align:left;vertical-align:top}
+  th{font-size:12px;text-transform:uppercase;letter-spacing:.4px;color:var(--muted);background:var(--bg);position:sticky;top:0}
+  td.num,th.num{text-align:right;white-space:nowrap}
+  tr:last-child td{border-bottom:0}
+  .thumb{width:54px;height:54px;object-fit:cover;border-radius:8px;border:1px solid var(--line);cursor:pointer;display:block}
+  .st{font-size:12px;padding:2px 8px;border-radius:999px;border:1px solid currentColor;white-space:nowrap}
+  .st.Paid{color:var(--paid)} .st.Partial{color:var(--partial)} .st.Unpaid{color:var(--unpaid)}
+  .muted{color:var(--muted)}
+  .remark textarea{min-width:200px}
+  dialog{border:1px solid var(--line);border-radius:14px;padding:18px;max-width:520px;width:calc(100vw - 24px);background:var(--card);color:var(--ink)}
+  dialog::backdrop{background:rgba(0,0,0,.45)}
+  .grid2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+  @media(max-width:520px){.grid2{grid-template-columns:1fr}}
+  .preview{margin-top:8px;max-width:100%;max-height:220px;border-radius:10px;border:1px solid var(--line)}
+  .toast{position:fixed;left:50%;bottom:20px;transform:translateX(-50%);background:var(--ink);color:var(--bg);padding:10px 16px;border-radius:10px;z-index:50;max-width:90vw}
+  .toast.err{background:var(--danger);color:#fff}
+  .list{margin:10px 0;padding:0;list-style:none}
+  .list li{display:flex;justify-content:space-between;gap:10px;align-items:center;padding:7px 0;border-bottom:1px solid var(--line)}
+  h2,h3{margin:0 0 8px}
+  .hint{font-size:12px;color:var(--muted);margin-top:6px}
+  .divider{display:flex;align-items:center;gap:10px;color:var(--muted);font-size:12px;margin:14px 0}
+  .divider::before,.divider::after{content:"";flex:1;height:1px;background:var(--line)}
+</style>
+</head>
+<body>
+<div id="root"></div>
+<dialog id="dlg"></dialog>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/jspdf-autotable@3.8.2/dist/jspdf.plugin.autotable.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
+<script src="config.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
